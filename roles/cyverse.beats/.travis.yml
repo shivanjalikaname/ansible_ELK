@@ -1,0 +1,62 @@
+---
+sudo: required
+services:
+  - docker
+env:
+  - distribution: centos
+    version: 7
+    init: /usr/lib/systemd/systemd
+    run_opts: "--privileged --volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - distribution: centos
+    version: 6
+    init: /sbin/init
+    run_opts: ""
+  - distribution: ubuntu
+    version: 16.04
+    init: /lib/systemd/systemd
+    run_opts: "--privileged --volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - distribution: ubuntu
+    version: 14.04
+    init: /sbin/init
+    run_opts: ""
+  - distribution: ubuntu
+    version: 12.04
+    init: /sbin/init
+    run_opts: ""
+
+before_install:
+    # Pull image
+    - 'sudo docker pull cyverse/ansible-test:latest-${distribution}-${version}'
+script:
+    - container_id=$(mktemp)
+      ###############################################
+      #### TEST: 0 - Ansible Syntax Check
+      ###############################################
+    - 'sudo docker run -it --detach --volume="${PWD}":/etc/ansible/roles/role_under_test:ro ${run_opts} cyverse/ansible-test:latest-${distribution}-${version} "${init}" > "${container_id}"'
+    - 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-galaxy install -f -r /etc/ansible/roles/role_under_test/tests/requirements.yml'
+      ## TEST: Ansible syntax check.
+    - 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-1.yml --syntax-check'
+
+      ############################################################################
+      #### TEST 1
+      ####   - Verify that default beat installation.
+      ############################################################################
+      #### metricbeat
+    - >
+        sudo docker exec "$(cat ${container_id})" metricbeat.sh -version
+        && (echo 'Metricbeat installed: fail' && exit 1)
+        || (echo 'Metricbeat not installed: pass' && exit 0)
+    - 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-1.yml --extra-vars "BEAT_TYPE=metricbeat"'
+    - >
+        sudo docker exec "$(cat ${container_id})" metricbeat.sh -version
+        && (echo 'Metricbeat installed: pass' && exit 0)
+        || (echo 'Metricbeat not installed: fail' && exit 1)
+
+       
+notifications:
+  webhooks:
+    urls:
+       - https://galaxy.ansible.com/api/v1/notifications/
+    on_success: always
+    on_failure: never
+

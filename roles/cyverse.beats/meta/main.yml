@@ -1,0 +1,38 @@
+---
+galaxy_info:
+  author: Jonathan Strootman
+  description: A role to install and configure Elasticsearch Beats.
+  company: https://cyverse.org
+  license: See LICENSE.md
+  min_ansible_version: 2.2.0
+  platforms:
+  - name: EL
+    versions:
+    - 6
+    - 7
+  - name: Ubuntu
+    versions:
+    - precise
+    - trusty
+    - utopic
+    - wily
+    - xenial
+  galaxy_tags: 
+      - beats
+      - elastic
+      - elasticstack
+      - elasticsearch
+
+dependencies: 
+  - role: CyVerse-Ansible.elastic-stack-install
+    version: v5.2.0
+    es_instance_name: "{{ beat_instance_name | default(omit) }}"
+    ES_PACKAGE: "{{BEAT_TYPE}}"
+    ES_CONFIG_CONTENTS: "{{beat_cfg}}"
+    SYSD_FILE_TEMPLATE_SRC: "{{role_path}}/templates/beats/systemd/beat.service.j2"
+    INIT_FILE_TEMPLATE_SRC: "{{role_path}}/templates/beats/init/{{ansible_os_family}}-init.j2"
+    es_user: "{{beat_user}}"
+    es_group: "{{beat_group}}"
+
+
+

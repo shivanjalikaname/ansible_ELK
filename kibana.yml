@@ -1,0 +1,5 @@
+---
+- hosts : ubuntu@192.168.85.136
+  become : yes
+  roles :
+    - geerlingguy.kibana  

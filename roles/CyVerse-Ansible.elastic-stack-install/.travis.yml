@@ -1,0 +1,86 @@
+---
+sudo: required
+services:
+  - docker
+env:
+  - distribution: centos
+    version: 7
+    init: /usr/lib/systemd/systemd
+    run_opts: "--privileged --volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - distribution: centos
+    version: 6
+    init: /sbin/init
+    run_opts: ""
+  - distribution: ubuntu
+    version: 16.04
+    init: /lib/systemd/systemd
+    run_opts: "--privileged --volume=/sys/fs/cgroup:/sys/fs/cgroup:ro"
+  - distribution: ubuntu
+    version: 14.04
+    init: /sbin/init
+    run_opts: ""
+  - distribution: ubuntu
+    version: 12.04
+    init: /sbin/init
+    run_opts: ""
+
+before_install:
+    # Pull image
+    - 'sudo docker pull cyverse/ansible-test:latest-${distribution}-${version}'
+script:
+    - container_id=$(mktemp)
+      ###############################################
+      #### TEST: Ansible Syntax Check
+      ###############################################
+    - 'sudo docker run -it --detach --volume="${PWD}":/etc/ansible/roles/role_under_test:ro ${run_opts} cyverse/ansible-test:latest-${distribution}-${version} "${init}" > "${container_id}"'
+      ## TEST: Ansible syntax check.
+    - 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-1.yml --syntax-check'
+
+
+      ############################################################################
+      #### TEST 1
+      ####   - Verify Default Directory layout 
+      ############################################################################
+
+      # Logstash
+    #- 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-1.yml --extra-vars "ES_PACKAGE=logstash es_java_install=true"'
+      # Kibana
+    - 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-1.yml --extra-vars "ES_PACKAGE=kibana"'
+      # Elasticsearch
+    #- 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-1.yml --extra-vars "ES_PACKAGE=elasticsearch es_java_install=true"'
+      # Metricbeat
+    - 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-1.yml --extra-vars "ES_PACKAGE=metricbeat es_user=root es_group=root"'
+
+        # Clean up
+    - 'sudo docker stop "$(cat ${container_id})"'
+      ############################################################################
+      #### TEST 2
+      ####   - Verify Instance-Specific Directory layout 
+      ############################################################################
+
+    - 'sudo docker run -it --detach --volume="${PWD}":/etc/ansible/roles/role_under_test:ro ${run_opts} cyverse/ansible-test:latest-${distribution}-${version} "${init}" > "${container_id}"'
+
+      # Metricbeat
+    - 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-instance-beats-2.yml --extra-vars "BEAT_TYPE=metricbeat"'
+
+        # Clean up
+    - 'sudo docker stop "$(cat ${container_id})"'
+      ############################################################################
+      #### TEST 3
+      ####   - Verify Multi-Instance Installation
+      ############################################################################
+
+    - 'sudo docker run -it --detach --volume="${PWD}":/etc/ansible/roles/role_under_test:ro ${run_opts} cyverse/ansible-test:latest-${distribution}-${version} "${init}" > "${container_id}"'
+
+    - 'sudo docker exec --tty "$(cat ${container_id})" env TERM=xterm ansible-playbook /etc/ansible/roles/role_under_test/tests/test-multi-instance-metricbeat-3.yml'
+
+        # Clean up
+    - 'sudo docker stop "$(cat ${container_id})"'
+
+notifications:
+  webhooks:
+    urls:
+       - https://galaxy.ansible.com/api/v1/notifications/
+    on_success: always
+    on_failure: never
+
